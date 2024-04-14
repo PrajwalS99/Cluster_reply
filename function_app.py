@@ -5,15 +5,24 @@ from Dummy_Model import SemiSupervisedClassifier, extract_text_from_blob, prepro
 
 dummy_model = SemiSupervisedClassifier(topics)
 
-@app.blob_trigger(name="myblob", path="clusterreplycontainer",
-                  connection="clusterreplyblob_STORAGE") 
-def blob_trigger_cluster_reply(myblob: func.InputStream):
-    try:
-        # Extract text from the blob
-        extracted_text = extract_text_from_blob(myblob.read())
+app = func.FunctionApp(http_auth_level=func.AuthLevel.FUNCTION)
 
-        # Preprocess the extracted text
-        preprocessed_text = preprocess(extracted_text)
+@app.route(route="clusterreply_final", methods=["POST"])
+def clusterreply_final(req: func.HttpRequest) -> func.HttpResponse:
+    try:
+        req_body = req.get_json()
+        text = req_body.get('text')  # Assuming the text of the Instagram post is provided in the request body asmentioned in the task description
+        if not text:
+            # If no text is provided, extract text from the blob, for the case when the text is to be extracted from the instagram post
+            blob_data = req_body.get('blob_data')
+            if not blob_data:
+                return func.HttpResponse("Text not found in the request body.", status_code=400)
+            
+            # Extract text from blob
+            text = extract_text_from_blob(blob_data)
+
+        # Preprocess the text
+        preprocessed_text = preprocess(text) #do the stemming and lemmatization to inprove performanceof the classifier
 
         # Classify the preprocessed text using the dummy model
         probabilities = dummy_model.predict_proba([preprocessed_text])[0]
